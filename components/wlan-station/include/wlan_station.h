@@ -1,6 +1,8 @@
 #pragma once
 
+#include <stdbool.h>
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
 
 /**
  * Defines WIFI_SSID and WIFI_PASSWORD, the Wi-Fi network set in wifi_credentials.h at the repository root
@@ -12,8 +14,9 @@
  *
  */
 typedef struct {
-    const char *ssid;     /*!< Name of the network */
-    const char *password; /*!< Password of the network, empty for an open network */
+    const char *ssid;        /*!< Name of the network */
+    const char *password;    /*!< Password of the network, empty for an open network */
+    bool disable_power_save; /*!< Keep the radio on, so multicast messages are received without delay */
 } wlan_station_config_t;
 
 /**
@@ -27,3 +30,11 @@ typedef struct {
  * @return ESP_OK if Wi-Fi was started
  */
 esp_err_t wlan_station_start(const wlan_station_config_t *config);
+
+/**
+ * @brief Wait until connected and given an IP address
+ *
+ * @param timeout Maximum time to wait
+ * @return ESP_OK if connected, ESP_ERR_TIMEOUT if not connected in time
+ */
+esp_err_t wlan_station_wait_connected(TickType_t timeout);

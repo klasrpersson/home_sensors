@@ -6,10 +6,15 @@
 #include "esp_netif.h"
 #include "esp_timer.h"
 #include "esp_wifi.h"
+#include "freertos/event_groups.h"
 #include "nvs_flash.h"
 #include "wlan_station.h"
 
 static const char *TAG = "wlan_station";
+
+#define WLAN_STATION_CONNECTED_BIT BIT0
+
+static EventGroupHandle_t wlan_station_events;
 
 /**
  * @brief Delay before reconnecting after the connection is lost, doubled after each failed attempt
@@ -44,6 +49,7 @@ static void wlan_station_event_handler(void *arg, esp_event_base_t event_base, i
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *) event_data;
+        xEventGroupClearBits(wlan_station_events, WLAN_STATION_CONNECTED_BIT);
         // Back off, so an unavailable network or a wrong password does not keep the radio busy and flood the log
         ESP_LOGW(TAG, "Disconnected, reason %d, reconnecting in %" PRIu32 " s", event->reason, wlan_station_reconnect_delay_ms / 1000);
         esp_timer_start_once(wlan_station_reconnect_timer, (uint64_t) wlan_station_reconnect_delay_ms * 1000);
@@ -53,6 +59,7 @@ static void wlan_station_event_handler(void *arg, esp_event_base_t event_base, i
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG, "Connected, got ip " IPSTR, IP2STR(&event->ip_info.ip));
         wlan_station_reconnect_delay_ms = WLAN_STATION_RECONNECT_MIN_DELAY_MS;
+        xEventGroupSetBits(wlan_station_events, WLAN_STATION_CONNECTED_BIT);
     }
 }
 
@@ -101,6 +108,12 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
     }
     ESP_RETURN_ON_ERROR(err, TAG, "init NVS failed");
 
+    wlan_station_events = xEventGroupCreate();
+    if (wlan_station_events == NULL) {
+        ESP_LOGE(TAG, "create event group failed");
+        return ESP_ERR_NO_MEM;
+    }
+
     ESP_RETURN_ON_ERROR(esp_netif_init(), TAG, "init network stack failed");
     err = esp_event_loop_create_default();
     if (err != ESP_ERR_INVALID_STATE) {
@@ -127,8 +140,25 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
     ESP_RETURN_ON_ERROR(esp_wifi_set_mode(WIFI_MODE_STA), TAG, "set Wi-Fi mode failed");
     ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA, &wifi_config), TAG, "set Wi-Fi config failed");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "start Wi-Fi failed");
+    if (config->disable_power_save) {
+        ESP_RETURN_ON_ERROR(esp_wifi_set_ps(WIFI_PS_NONE), TAG, "disable Wi-Fi power save failed");
+    }
 
     ESP_LOGI(TAG, "Connecting to %s", ssid);
 
     return ESP_OK;
+}
+
+/**
+ * @brief Wait until connected and given an IP address
+ *
+ * @param timeout Maximum time to wait
+ * @return ESP_OK if connected, ESP_ERR_TIMEOUT if not connected in time
+ */
+esp_err_t wlan_station_wait_connected(TickType_t timeout) {
+    if (wlan_station_events == NULL) {
+        return ESP_ERR_INVALID_STATE;
+    }
+    EventBits_t bits = xEventGroupWaitBits(wlan_station_events, WLAN_STATION_CONNECTED_BIT, pdFALSE, pdTRUE, timeout);
+    return (bits & WLAN_STATION_CONNECTED_BIT) ? ESP_OK : ESP_ERR_TIMEOUT;
 }

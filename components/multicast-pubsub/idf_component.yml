@@ -1,0 +1,5 @@
+dependencies:
+  espressif/cjson:
+    version: "^1.7.19"
+    # Public, received message data is a cJSON object
+    require: public
