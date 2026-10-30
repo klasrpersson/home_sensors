@@ -10,7 +10,7 @@ Build and flash with:
     idf.py build
     idf.py -p PORT flash monitor
 
-The UART baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
+The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
 
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this

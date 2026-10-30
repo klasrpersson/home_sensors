@@ -54,7 +54,7 @@ typedef struct {
 #define VINDRIKTNING_PARSER_CONFIG_DEFAULT()         \
     {                                      \
         .uart = {                          \
-            .uart_port = UART_NUM_0,       \
+            .uart_port = IKEA_UART_PORT_NUM, \
             .baud_rate = IKEA_UART_BAUD_RATE,           \
             .data_bits = UART_DATA_8_BITS, \
             .parity = UART_PARITY_DISABLE, \
