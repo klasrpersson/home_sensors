@@ -143,7 +143,7 @@ vindriktning_parser_handle_t *vindriktning_parser_init(const vindriktning_parser
             .parity = config->uart.parity,
             .stop_bits = config->uart.stop_bits,
             .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-            .source_clk = UART_SCLK_APB
+            .source_clk = UART_SCLK_DEFAULT
     };
 
     if (uart_driver_install(esp_vindriktning->uart_port, VINDRIKTNING_PARSER_RING_BUFFER_SIZE, 0, 0, NULL, 0) != ESP_OK) {

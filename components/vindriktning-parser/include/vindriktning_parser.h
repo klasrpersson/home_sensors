@@ -1,15 +1,11 @@
 #pragma once
 
 #include "esp_types.h"
-#include "esp_event.h"
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 #include "driver/uart.h"
-
-// #include "esp_types.h"
-// #include "esp_event.h"
-// #include "esp_err.h"
-// #include "driver/uart.h"
-// #include "freertos/task.h"
 
 #define IKEA_UART_PORT_NUM (CONFIG_UART_PORT_NUM)
 #define IKEA_UART_BAUD_RATE (CONFIG_UART_BAUD_RATE)
