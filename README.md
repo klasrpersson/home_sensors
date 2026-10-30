@@ -12,6 +12,21 @@ Build and flash with:
 
 The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
 
+Publishing over the network
+---------------------------
+
+Measurements are sent over Wi-Fi as UDP multicast, so any device on the network can receive them without a broker. Each message type has its own multicast group, and receivers join the groups of the types they want. Messages are JSON:
+
+    {"v":1,"type":"air_quality","src":"vindriktning","seq":42,"data":{"pm1":3,"pm10":6,"pm25":5}}
+
+`src` is the device name and `seq` counts up per message type, so receivers can tell devices apart and notice lost messages.
+
+Set the Wi-Fi network, device name, multicast group and port under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. The Wi-Fi password is stored in `sdkconfig`, so take care not to commit it.
+
+To see the messages on a computer on the same network, run:
+
+    python3 tools/multicast_receiver.py
+
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this
 software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
