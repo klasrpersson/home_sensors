@@ -1,21 +1,35 @@
 IKEA Vindriktning
 =================
 
-Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, using an ESP32-C3, and publishes them on the local network. The [receiver](#receiver) firmware in `receiver/` receives them on an ESP32-C6.
+Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, using an ESP32-C3, and publishes them on the local network, where an ESP32-C6 receives them.
 
 Requires [ESP-IDF](https://github.com/espressif/esp-idf) v6.1 or later. See the [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html) for getting started instructions.
 
-Copy `wifi_credentials.example.h` to `wifi_credentials.h` and set your Wi-Fi network in it. git ignores `wifi_credentials.h`, so the password stays on your machine. Then build and flash with:
+Repository layout
+-----------------
 
+    firmware/sensor/     ESP32-C3 firmware that reads the sensor and publishes the measurements
+    firmware/receiver/   ESP32-C6 firmware that receives the measurements and logs them
+    components/          ESP-IDF components shared by the firmwares
+    tools/               Tools for testing from a computer
+
+Each firmware is a separate ESP-IDF project, built from its own directory. All components in `components/` are available to every firmware, and only the ones a firmware uses are built. Components that only one firmware uses live in that firmware's own `components/` directory.
+
+Settings that differ from the ESP-IDF defaults are in each firmware's `sdkconfig.defaults`. The first build creates `sdkconfig` from it, and menuconfig changes are saved there. `sdkconfig` is ignored by git, so to change a setting for everyone, run `idf.py save-defconfig`, which writes the settings that differ from the defaults to `sdkconfig.defaults`, or edit that file by hand.
+
+All firmwares connect to the Wi-Fi network set in `wifi_credentials.h` at the repository root. Before building, copy `wifi_credentials.example.h` to `wifi_credentials.h` and set your network in it. git ignores `wifi_credentials.h`, so the password stays on your machine.
+
+Sensor
+------
+
+Build and flash from `firmware/sensor`:
+
+    cd firmware/sensor
+    idf.py menuconfig
     idf.py build
     idf.py -p PORT flash monitor
 
 The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
-
-Project settings that differ from the ESP-IDF defaults are in `sdkconfig.defaults`. The first build creates `sdkconfig` from it, and menuconfig changes are saved there. `sdkconfig` is ignored by git, so to change a setting for everyone, run `idf.py save-defconfig`, which writes the settings that differ from the defaults to `sdkconfig.defaults`, or edit that file by hand.
-
-Publishing over the network
----------------------------
 
 Measurements are sent over Wi-Fi as UDP multicast, so any device on the network can receive them without a broker. Each message type has its own multicast group, and receivers join the groups of the types they want. Messages are JSON:
 
@@ -25,16 +39,16 @@ Measurements are sent over Wi-Fi as UDP multicast, so any device on the network 
 
 Set the device name, multicast group and port under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
 
-To see the messages on a computer on the same network, run:
+To see the messages on a computer on the same network, run from the repository root:
 
     python3 tools/multicast_receiver.py
 
 Receiver
 --------
 
-`receiver/` is firmware for an ESP32-C6 that receives the air quality messages and logs them. It is a separate ESP-IDF project, sharing the `multicast-pubsub` and `wlan-station` components with the sensor firmware, and connects to the same Wi-Fi network in `wifi_credentials.h`. Build and flash it from its directory:
+Receives the air quality messages and logs them. Build and flash from `firmware/receiver`:
 
-    cd receiver
+    cd firmware/receiver
     idf.py menuconfig
     idf.py build
     idf.py -p PORT flash monitor
