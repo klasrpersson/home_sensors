@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "esp_err.h"
+#include "cJSON.h"
 
 /**
  * Messages are sent as UDP datagrams to the multicast group of their type, as JSON:
@@ -28,6 +29,18 @@
 #define MULTICAST_PUBSUB_MAX_MESSAGE_SIZE (512)
 
 /**
+ * @brief Maximum nesting depth of a received message, the envelope and data objects count as two
+ *
+ */
+#define MULTICAST_PUBSUB_MAX_DEPTH (8)
+
+/**
+ * @brief Maximum number of subscriptions per handle
+ *
+ */
+#define MULTICAST_PUBSUB_MAX_SUBSCRIPTIONS (8)
+
+/**
  * @brief Multicast pubsub runtime structure
  *
  */
@@ -38,8 +51,8 @@ typedef struct multicast_pubsub multicast_pubsub_handle_t;
  *
  */
 typedef struct {
-    const char *source; /*!< Name of this device, sent in every message */
-    uint8_t ttl;        /*!< Multicast TTL, 1 keeps messages on the local network */
+    const char *source; /*!< Name of this device, sent in every message, NULL if only subscribing */
+    uint8_t ttl;        /*!< Multicast TTL, 1 keeps messages on the local network, unused if only subscribing */
 } multicast_pubsub_config_t;
 
 /**
@@ -54,10 +67,30 @@ typedef struct {
 } multicast_pubsub_topic_t;
 
 /**
+ * @brief A received message, only valid during the callback
+ *
+ */
+typedef struct {
+    const char *type;   /*!< Message type */
+    const char *source; /*!< Name of the sending device */
+    uint32_t seq;       /*!< Sequence number */
+    const cJSON *data;  /*!< Message data */
+    const char *sender; /*!< IP address of the sending device */
+} multicast_pubsub_message_t;
+
+/**
+ * @brief Called for each received message of a subscribed topic
+ *
+ * @param message Received message
+ * @param ctx Context given to multicast_pubsub_subscribe()
+ */
+typedef void (*multicast_pubsub_callback_t)(const multicast_pubsub_message_t *message, void *ctx);
+
+/**
  * @brief Check that a topic has a valid type and multicast group
  *
- * Publishing checks the topic too, but call this at startup to find a configuration error before the
- * first message.
+ * Publishing and subscribing check the topic too, but call this at startup to find a configuration
+ * error before the first message.
  *
  * @param topic Topic to check
  * @return ESP_OK if the topic is valid
@@ -85,3 +118,19 @@ multicast_pubsub_handle_t *multicast_pubsub_init(const multicast_pubsub_config_t
  * @return ESP_OK if the message was sent
  */
 esp_err_t multicast_pubsub_publish(multicast_pubsub_handle_t *handle, multicast_pubsub_topic_t *topic, const char *data);
+
+/**
+ * @brief Join the multicast group of a topic and receive its messages
+ *
+ * Callbacks are called from a receive task that is created by the first subscription. Messages that
+ * are not valid JSON, are nested deeper than MULTICAST_PUBSUB_MAX_DEPTH, have another envelope version
+ * or another type than the topic are dropped.
+ *
+ * @param handle Handle of multicast pubsub
+ * @param topic Topic to subscribe to
+ * @param callback Called for each received message
+ * @param ctx Passed to the callback
+ * @return ESP_OK if subscribed
+ */
+esp_err_t multicast_pubsub_subscribe(multicast_pubsub_handle_t *handle, const multicast_pubsub_topic_t *topic,
+                                     multicast_pubsub_callback_t callback, void *ctx);

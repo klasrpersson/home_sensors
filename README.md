@@ -1,7 +1,7 @@
 IKEA Vindriktning
 =================
 
-Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, using an ESP32-C3.
+Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, using an ESP32-C3, and publishes them on the local network. The [receiver](#receiver) firmware in `receiver/` receives them on an ESP32-C6.
 
 Requires [ESP-IDF](https://github.com/espressif/esp-idf) v6.1 or later. See the [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html) for getting started instructions.
 
@@ -28,6 +28,22 @@ Set the device name, multicast group and port under "IKEA Vindriktning Configura
 To see the messages on a computer on the same network, run:
 
     python3 tools/multicast_receiver.py
+
+Receiver
+--------
+
+`receiver/` is firmware for an ESP32-C6 that receives the air quality messages and logs them. It is a separate ESP-IDF project, sharing the `multicast-pubsub` and `wlan-station` components with the sensor firmware, and connects to the same Wi-Fi network in `wifi_credentials.h`. Build and flash it from its directory:
+
+    cd receiver
+    idf.py menuconfig
+    idf.py build
+    idf.py -p PORT flash monitor
+
+Each message is logged with the device name and IP address of its sender:
+
+    I (8123) Receiver: air_quality from vindriktning (192.168.1.23) #42: {"pm1":3,"pm10":6,"pm25":5}
+
+The multicast group and port can be changed under "Vindriktning Receiver Configuration" in `idf.py menuconfig`, and must match the sensor firmware. Gaps in `#` mean messages were lost on the way.
 
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this
