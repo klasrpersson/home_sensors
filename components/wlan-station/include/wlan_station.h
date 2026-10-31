@@ -3,6 +3,11 @@
 #include "esp_err.h"
 
 /**
+ * Defines WIFI_SSID and WIFI_PASSWORD, the Wi-Fi network set in wifi_credentials.h at the repository root
+ */
+#include WLAN_STATION_CREDENTIALS
+
+/**
  * @brief Configuration of Wi-Fi station
  *
  */

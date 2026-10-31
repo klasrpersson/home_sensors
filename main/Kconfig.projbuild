@@ -26,20 +26,6 @@ menu "IKEA Vindriktning Configuration"
             GPIO number for UART RX pin. See UART documentation for more information
             about available pin numbers for UART.
 
-    menu "Wi-Fi"
-        config WIFI_SSID
-            string "SSID"
-            default ""
-            help
-                Name of the Wi-Fi network to connect to.
-
-        config WIFI_PASSWORD
-            string "Password"
-            default ""
-            help
-                Password of the Wi-Fi network. Leave empty for an open network.
-    endmenu
-
     menu "Multicast"
         config MULTICAST_SOURCE
             string "Device name"

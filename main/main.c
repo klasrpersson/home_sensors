@@ -51,8 +51,8 @@ void app_main(void)
     }
 
     wlan_station_config_t wifi_config = {
-        .ssid = CONFIG_WIFI_SSID,
-        .password = CONFIG_WIFI_PASSWORD
+        .ssid = WIFI_SSID,
+        .password = WIFI_PASSWORD
     };
 
     // Check the multicast settings now, instead of failing on every measurement
