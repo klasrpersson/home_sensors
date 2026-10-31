@@ -39,7 +39,7 @@ Measurements are sent over Wi-Fi as UDP multicast, so any device on the network 
 
 Set the device name, multicast group and port under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
 
-To see the messages on a computer on the same network, run:
+To see the messages on a computer on the same network, run from the repository root:
 
     python3 tools/multicast_receiver.py
 
