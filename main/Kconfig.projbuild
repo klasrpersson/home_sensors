@@ -26,4 +26,33 @@ menu "IKEA Vindriktning Configuration"
             GPIO number for UART RX pin. See UART documentation for more information
             about available pin numbers for UART.
 
+    menu "Multicast"
+        config MULTICAST_SOURCE
+            string "Device name"
+            default "vindriktning"
+            help
+                Name sent in every message, so receivers can tell devices apart.
+
+        config MULTICAST_GROUP
+            string "Air quality multicast group"
+            default "239.255.10.1"
+            help
+                IPv4 multicast group that air quality messages are sent to.
+                Receivers join this group to get them.
+
+        config MULTICAST_PORT
+            int "UDP port"
+            range 1 65535
+            default 45000
+            help
+                UDP port that messages are sent to.
+
+        config MULTICAST_TTL
+            int "TTL"
+            range 1 255
+            default 1
+            help
+                Number of routers messages may pass. 1 keeps them on the local network.
+    endmenu
+
 endmenu
