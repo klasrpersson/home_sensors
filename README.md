@@ -1,17 +1,17 @@
-IKEA Vindriktning
-=================
+Home sensors
+============
 
-Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, using an ESP32-C3, and publishes them on the local network, where an ESP32-C6 receives them.
+Firmware for sensors around the home. The sensors publish their measurements on the local network, where an ESP32-C6 receives them.
 
 Requires [ESP-IDF](https://github.com/espressif/esp-idf) v6.1 or later. See the [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html) for getting started instructions.
 
 Repository layout
 -----------------
 
-    firmware/sensor/     ESP32-C3 firmware that reads the sensor and publishes the measurements
-    firmware/receiver/   ESP32-C6 firmware that receives the measurements and logs them
-    components/          ESP-IDF components shared by the firmwares
-    tools/               Tools for testing from a computer
+    firmware/vindriktning/   ESP32-C3 firmware that reads an IKEA Vindriktning and publishes the measurements
+    firmware/receiver/       ESP32-C6 firmware that receives the measurements and logs them
+    components/              ESP-IDF components shared by the firmwares
+    tools/                   Tools for testing from a computer
 
 Each firmware is a separate ESP-IDF project, built from its own directory. All components in `components/` are available to every firmware, and only the ones a firmware uses are built. Components that only one firmware uses live in that firmware's own `components/` directory.
 
@@ -19,17 +19,8 @@ Settings that differ from the ESP-IDF defaults are in each firmware's `sdkconfig
 
 All firmwares connect to the Wi-Fi network set in `wifi_credentials.h` at the repository root. Before building, copy `wifi_credentials.example.h` to `wifi_credentials.h` and set your network in it. git ignores `wifi_credentials.h`, so the password stays on your machine.
 
-Sensor
-------
-
-Build and flash from `firmware/sensor`:
-
-    cd firmware/sensor
-    idf.py menuconfig
-    idf.py build
-    idf.py -p PORT flash monitor
-
-The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
+Messages
+--------
 
 Measurements are sent over Wi-Fi as UDP multicast, so any device on the network can receive them without a broker. Each message type has its own multicast group, and receivers join the groups of the types they want. Messages are JSON:
 
@@ -37,11 +28,21 @@ Measurements are sent over Wi-Fi as UDP multicast, so any device on the network 
 
 `src` is the device name and `seq` counts up per message type, so receivers can tell devices apart and notice lost messages.
 
-Set the device name, multicast group and port under "IKEA Vindriktning Configuration" in `idf.py menuconfig`.
-
 To see the messages on a computer on the same network, run from the repository root:
 
     python3 tools/multicast_receiver.py
+
+IKEA Vindriktning
+-----------------
+
+Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, and publishes them as `air_quality` messages. Build and flash from `firmware/vindriktning`:
+
+    cd firmware/vindriktning
+    idf.py menuconfig
+    idf.py build
+    idf.py -p PORT flash monitor
+
+The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. Set the device name, multicast group and port in the same menu.
 
 Receiver
 --------
@@ -57,7 +58,7 @@ Each message is logged with the device name and IP address of its sender:
 
     I (8123) Receiver: air_quality from vindriktning (192.168.1.23) #42: {"pm1":3,"pm10":6,"pm25":5}
 
-The multicast group and port can be changed under "Vindriktning Receiver Configuration" in `idf.py menuconfig`, and must match the sensor firmware. Gaps in `#` mean messages were lost on the way.
+The multicast group and port can be changed under "Receiver Configuration" in `idf.py menuconfig`, and must match the sensors. Gaps in `#` mean messages were lost on the way.
 
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this
