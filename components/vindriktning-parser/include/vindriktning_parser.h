@@ -1,29 +1,32 @@
 #pragma once
 
 #include "esp_types.h"
-#include "esp_event.h"
 #include "esp_err.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
 #include "driver/uart.h"
-
-// #include "esp_types.h"
-// #include "esp_event.h"
-// #include "esp_err.h"
-// #include "driver/uart.h"
-// #include "freertos/task.h"
 
 #define IKEA_UART_PORT_NUM (CONFIG_UART_PORT_NUM)
 #define IKEA_UART_BAUD_RATE (CONFIG_UART_BAUD_RATE)
 #define IKEA_UART_RXD (CONFIG_UART_RXD)
 
 /**
+ * @brief Number of measurements the reported values are averaged over
+ *
+ */
+#define VINDRIKTNING_PARSER_AVERAGE_SAMPLES (3)
+
+/**
  * @brief Vindriktning parser library runtime structure
  *
  */
 typedef struct {
-    int measurement_no;
-    uint16_t pm1[3];
-    uint16_t pm10[3];
-    uint16_t pm25[3];
+    int measurement_no;                          /*!< Slot the next measurement is stored in */
+    int measurement_count;                       /*!< Number of measurements stored, up to VINDRIKTNING_PARSER_AVERAGE_SAMPLES */
+    uint16_t pm1[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
+    uint16_t pm10[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
+    uint16_t pm25[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
     uart_port_t uart_port;                       /*!< Uart port number */
     char *buffer;                             /*!< Runtime buffer */
     TaskHandle_t tsk_hdl;                        /*!< P1 Parser task handle */
@@ -58,7 +61,7 @@ typedef struct {
 #define VINDRIKTNING_PARSER_CONFIG_DEFAULT()         \
     {                                      \
         .uart = {                          \
-            .uart_port = UART_NUM_0,       \
+            .uart_port = IKEA_UART_PORT_NUM, \
             .baud_rate = IKEA_UART_BAUD_RATE,           \
             .data_bits = UART_DATA_8_BITS, \
             .parity = UART_PARITY_DISABLE, \

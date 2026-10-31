@@ -1,1 +1,3 @@
-idf_component_register(SRCS "vindriktning_parser.c" INCLUDE_DIRS "include")
+idf_component_register(SRCS "vindriktning_parser.c"
+                       INCLUDE_DIRS "include"
+                       REQUIRES esp_driver_uart)
