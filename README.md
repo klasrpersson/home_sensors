@@ -1,15 +1,15 @@
 Home sensors
 ============
 
-Firmware for sensors around the home. The sensors publish their measurements on the local network, where an ESP32-C6 receives them.
+Firmware for sensors around the home. The sensors publish their measurements on the local network, where any device can receive them. The receiver firmware receives the air quality measurements on an ESP32-C6 and logs them.
 
-Requires [ESP-IDF](https://github.com/espressif/esp-idf) v6.1 or later. See the [ESP-IDF docs](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html) for getting started instructions.
+Requires [ESP-IDF](https://github.com/espressif/esp-idf) v6.1 or later. See the ESP-IDF getting started guide for the [ESP32-C3](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/get-started/index.html) or [ESP32-C6](https://docs.espressif.com/projects/esp-idf/en/latest/esp32c6/get-started/index.html).
 
 Repository layout
 -----------------
 
     firmware/vindriktning/   ESP32-C3 firmware that reads an IKEA Vindriktning and publishes the measurements
-    firmware/receiver/       ESP32-C6 firmware that receives the measurements and logs them
+    firmware/receiver/       ESP32-C6 firmware that receives the air quality measurements and logs them
     components/              ESP-IDF components shared by the firmwares
     tools/                   Tools for testing from a computer
 
@@ -32,6 +32,8 @@ To see the messages on a computer on the same network, run from the repository r
 
     python3 tools/multicast_receiver.py
 
+It joins the air quality group, 239.255.10.1, on port 45000. To see other message types, add `--group` with each group to join, and `--port` if they use another port.
+
 IKEA Vindriktning
 -----------------
 
@@ -42,7 +44,7 @@ Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA V
     idf.py build
     idf.py -p PORT flash monitor
 
-The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. Set the device name, multicast group and port in the same menu.
+The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. The device name, multicast group, port and TTL are in its "Multicast" submenu.
 
 Receiver
 --------
@@ -58,7 +60,7 @@ Each message is logged with the device name and IP address of its sender:
 
     I (8123) Receiver: air_quality from vindriktning (192.168.1.23) #42: {"pm1":3,"pm10":6,"pm25":5}
 
-The multicast group and port can be changed under "Receiver Configuration" in `idf.py menuconfig`, and must match the sensors. Gaps in `#` mean messages were lost on the way.
+The multicast group and port can be changed under "Receiver Configuration" → "Multicast" in `idf.py menuconfig`, and must match the air quality group and port set in the sensors. Gaps in `#` mean messages were lost on the way.
 
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this

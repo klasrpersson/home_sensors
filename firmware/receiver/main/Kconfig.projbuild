@@ -6,14 +6,14 @@ menu "Receiver Configuration"
             default "239.255.10.1"
             help
                 IPv4 multicast group to receive air quality messages from.
-                Must match the group the sensors send to.
+                Must match the air quality multicast group set in the sensors.
 
         config MULTICAST_PORT
             int "UDP port"
             range 1 65535
             default 45000
             help
-                UDP port that messages are sent to. Must match the port the sensors send to.
+                UDP port that air quality messages are sent to. Must match the port set in the sensors.
     endmenu
 
 endmenu
