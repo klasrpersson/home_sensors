@@ -1,13 +1,39 @@
+#include <inttypes.h>
 #include <string.h>
 #include "esp_check.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
+#include "esp_timer.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "wlan_station.h"
 
 static const char *TAG = "wlan_station";
+
+/**
+ * @brief Delay before reconnecting after the connection is lost, doubled after each failed attempt
+ *
+ */
+#define WLAN_STATION_RECONNECT_MIN_DELAY_MS (1000)
+
+/**
+ * @brief Longest delay between reconnect attempts, while the network is unavailable
+ *
+ */
+#define WLAN_STATION_RECONNECT_MAX_DELAY_MS (60000)
+
+static esp_timer_handle_t wlan_station_reconnect_timer;
+
+static uint32_t wlan_station_reconnect_delay_ms = WLAN_STATION_RECONNECT_MIN_DELAY_MS;
+
+/**
+ * @brief Reconnect timer callback
+ *
+ */
+static void wlan_station_reconnect(void *arg) {
+    esp_wifi_connect();
+}
 
 /**
  * @brief Wi-Fi and IP event handler, keeps the station connected
@@ -18,11 +44,15 @@ static void wlan_station_event_handler(void *arg, esp_event_base_t event_base, i
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         wifi_event_sta_disconnected_t *event = (wifi_event_sta_disconnected_t *) event_data;
-        ESP_LOGW(TAG, "Disconnected, reason %d, reconnecting", event->reason);
-        esp_wifi_connect();
+        // Back off, so an unavailable network or a wrong password does not keep the radio busy and flood the log
+        ESP_LOGW(TAG, "Disconnected, reason %d, reconnecting in %" PRIu32 " s", event->reason, wlan_station_reconnect_delay_ms / 1000);
+        esp_timer_start_once(wlan_station_reconnect_timer, (uint64_t) wlan_station_reconnect_delay_ms * 1000);
+        wlan_station_reconnect_delay_ms = wlan_station_reconnect_delay_ms * 2 < WLAN_STATION_RECONNECT_MAX_DELAY_MS
+                                          ? wlan_station_reconnect_delay_ms * 2 : WLAN_STATION_RECONNECT_MAX_DELAY_MS;
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
         ESP_LOGI(TAG, "Connected, got ip " IPSTR, IP2STR(&event->ip_info.ip));
+        wlan_station_reconnect_delay_ms = WLAN_STATION_RECONNECT_MIN_DELAY_MS;
     }
 }
 
@@ -80,6 +110,12 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
         ESP_LOGE(TAG, "create Wi-Fi station interface failed");
         return ESP_FAIL;
     }
+
+    esp_timer_create_args_t reconnect_timer_args = {
+            .callback = wlan_station_reconnect,
+            .name = "wlan_reconnect"
+    };
+    ESP_RETURN_ON_ERROR(esp_timer_create(&reconnect_timer_args, &wlan_station_reconnect_timer), TAG, "create reconnect timer failed");
 
     wifi_init_config_t init_config = WIFI_INIT_CONFIG_DEFAULT();
     ESP_RETURN_ON_ERROR(esp_wifi_init(&init_config), TAG, "init Wi-Fi failed");

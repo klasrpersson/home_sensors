@@ -15,7 +15,8 @@ typedef struct {
  * @brief Start Wi-Fi and connect to a network
  *
  * Initializes NVS, the network stack and the default event loop. Returns without waiting for the
- * connection, and reconnects whenever the connection is lost.
+ * connection, and reconnects whenever the connection is lost. Failed attempts are retried after a delay
+ * that doubles each time, up to a minute.
  *
  * @param config Configuration of Wi-Fi station
  * @return ESP_OK if Wi-Fi was started
