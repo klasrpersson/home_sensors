@@ -54,7 +54,11 @@ void app_main(void)
         .ssid = CONFIG_WIFI_SSID,
         .password = CONFIG_WIFI_PASSWORD
     };
-    if (wlan_station_start(&wifi_config) == ESP_OK) {
+
+    // Check the multicast settings now, instead of failing on every measurement
+    if (multicast_pubsub_check_topic(&air_quality_topic) != ESP_OK) {
+        ESP_LOGE(TAG, "Invalid multicast group, measurements will not be published");
+    } else if (wlan_station_start(&wifi_config) == ESP_OK) {
         multicast_pubsub_config_t publisher_config = {
             .source = CONFIG_MULTICAST_SOURCE,
             .ttl = CONFIG_MULTICAST_TTL

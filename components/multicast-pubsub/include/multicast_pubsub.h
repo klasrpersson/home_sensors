@@ -54,6 +54,17 @@ typedef struct {
 } multicast_pubsub_topic_t;
 
 /**
+ * @brief Check that a topic has a valid type and multicast group
+ *
+ * Publishing checks the topic too, but call this at startup to find a configuration error before the
+ * first message.
+ *
+ * @param topic Topic to check
+ * @return ESP_OK if the topic is valid
+ */
+esp_err_t multicast_pubsub_check_topic(const multicast_pubsub_topic_t *topic);
+
+/**
  * @brief Init multicast pubsub
  *
  * The network stack must be initialized before calling this.

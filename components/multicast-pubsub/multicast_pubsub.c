@@ -32,6 +32,43 @@ static bool is_json_safe(const char *str) {
 }
 
 /**
+ * @brief Get the multicast group address and port of a topic
+ *
+ * @param topic Topic
+ * @param addr Filled with the address
+ * @return ESP_OK if the topic has a valid type and multicast group
+ */
+static esp_err_t topic_address(const multicast_pubsub_topic_t *topic, struct sockaddr_in *addr) {
+    if (!is_json_safe(topic->type)) {
+        ESP_LOGE(TAG, "type must be a non-empty string without quotes, backslashes or control characters");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    memset(addr, 0, sizeof(*addr));
+    addr->sin_family = AF_INET;
+    addr->sin_port = htons(topic->port);
+    if (topic->group == NULL || inet_aton(topic->group, &addr->sin_addr) == 0 || !IN_MULTICAST(ntohl(addr->sin_addr.s_addr))) {
+        ESP_LOGE(TAG, "invalid multicast group for type %s", topic->type);
+        return ESP_ERR_INVALID_ARG;
+    }
+    return ESP_OK;
+}
+
+/**
+ * @brief Check that a topic has a valid type and multicast group
+ *
+ * @param topic Topic to check
+ * @return ESP_OK if the topic is valid
+ */
+esp_err_t multicast_pubsub_check_topic(const multicast_pubsub_topic_t *topic) {
+    if (topic == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    struct sockaddr_in addr;
+    return topic_address(topic, &addr);
+}
+
+/**
  * @brief Init multicast pubsub
  *
  * @param config Configuration of multicast pubsub
@@ -96,18 +133,11 @@ esp_err_t multicast_pubsub_publish(multicast_pubsub_handle_t *handle, multicast_
     if (handle == NULL || topic == NULL || data == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
-    if (!is_json_safe(topic->type)) {
-        ESP_LOGE(TAG, "type must be a non-empty string without quotes, backslashes or control characters");
-        return ESP_ERR_INVALID_ARG;
-    }
 
-    struct sockaddr_in dest = {
-            .sin_family = AF_INET,
-            .sin_port = htons(topic->port)
-    };
-    if (topic->group == NULL || inet_aton(topic->group, &dest.sin_addr) == 0 || !IN_MULTICAST(ntohl(dest.sin_addr.s_addr))) {
-        ESP_LOGE(TAG, "invalid multicast group for type %s", topic->type);
-        return ESP_ERR_INVALID_ARG;
+    struct sockaddr_in dest;
+    esp_err_t err = topic_address(topic, &dest);
+    if (err != ESP_OK) {
+        return err;
     }
 
     char message[MULTICAST_PUBSUB_MAX_MESSAGE_SIZE];
