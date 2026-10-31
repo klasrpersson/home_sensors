@@ -10,8 +10,9 @@
 static const char *TAG = "multicast_pubsub";
 
 struct multicast_pubsub {
-    int sock;     /*!< UDP socket used for sending */
-    char *source; /*!< Name of this device */
+    int sock;          /*!< UDP socket used for sending */
+    char *source;      /*!< Name of this device */
+    bool send_failing; /*!< The last send failed, further failures are not logged */
 };
 
 /**
@@ -152,8 +153,17 @@ esp_err_t multicast_pubsub_publish(multicast_pubsub_handle_t *handle, multicast_
     topic->seq++;
 
     if (sendto(handle->sock, message, len, 0, (struct sockaddr *) &dest, sizeof(dest)) < 0) {
-        ESP_LOGW(TAG, "send of type %s to %s:%u failed, errno %d", topic->type, topic->group, topic->port, errno);
+        // Sends fail for as long as Wi-Fi is down, so only log the first failure
+        if (!handle->send_failing) {
+            ESP_LOGW(TAG, "send of type %s to %s:%u failed, errno %d, further failures are not logged until a send succeeds",
+                     topic->type, topic->group, topic->port, errno);
+            handle->send_failing = true;
+        }
         return ESP_FAIL;
+    }
+    if (handle->send_failing) {
+        ESP_LOGI(TAG, "Sending again");
+        handle->send_failing = false;
     }
 
     ESP_LOGD(TAG, "Sent %s", message);
