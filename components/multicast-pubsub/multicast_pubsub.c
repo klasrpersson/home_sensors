@@ -13,10 +13,10 @@
 static const char *TAG = "multicast_pubsub";
 
 /**
- * @brief Receive task stack size, callbacks run on this stack
+ * @brief Receive task stack size, callbacks run on this stack next to the receive buffer
  *
  */
-#define MULTICAST_PUBSUB_RX_TASK_STACK_SIZE (4096)
+#define MULTICAST_PUBSUB_RX_TASK_STACK_SIZE (4096 + MULTICAST_PUBSUB_MAX_MESSAGE_SIZE + 1)
 
 #define MULTICAST_PUBSUB_RX_TASK_PRIORITY (5)
 
@@ -34,14 +34,13 @@ typedef struct {
 } multicast_pubsub_subscription_t;
 
 struct multicast_pubsub {
-    int sock;                    /*!< UDP socket used for sending */
+    int sock;                    /*!< UDP socket used for sending, -1 if only subscribing */
     char *source;                /*!< Name of this device, NULL if only subscribing */
     bool send_failing;           /*!< The last send failed, further failures are not logged */
     SemaphoreHandle_t lock;      /*!< Protects subscription_count and rx_task */
     TaskHandle_t rx_task;        /*!< Receive task handle, created by the first subscription */
     size_t subscription_count;   /*!< Subscriptions are only added, entries below the count do not change */
     multicast_pubsub_subscription_t subscriptions[MULTICAST_PUBSUB_MAX_SUBSCRIPTIONS];
-    char rx_buffer[MULTICAST_PUBSUB_MAX_MESSAGE_SIZE + 1]; /*!< Only used by the receive task */
 };
 
 /**
@@ -56,6 +55,40 @@ static bool is_json_safe(const char *str) {
     for (; *str != '\0'; str++) {
         if (*str == '"' || *str == '\\' || (unsigned char) *str < 0x20) {
             return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief Check that JSON is nested no deeper than MULTICAST_PUBSUB_MAX_DEPTH
+ *
+ * cJSON parses, prints and deletes recursively, so a deeply nested message would overflow the receive
+ * task stack. Only the part before the first unbalanced bracket is checked, as cJSON stops parsing there.
+ *
+ * @param json JSON to check
+ * @param len Length of the JSON
+ */
+static bool is_shallow_json(const char *json, size_t len) {
+    int depth = 0;
+    bool in_string = false;
+    for (size_t i = 0; i < len; i++) {
+        if (in_string) {
+            if (json[i] == '\\') {
+                i++;
+            } else if (json[i] == '"') {
+                in_string = false;
+            }
+        } else if (json[i] == '"') {
+            in_string = true;
+        } else if (json[i] == '{' || json[i] == '[') {
+            if (++depth > MULTICAST_PUBSUB_MAX_DEPTH) {
+                return false;
+            }
+        } else if (json[i] == '}' || json[i] == ']') {
+            if (--depth < 0) {
+                break;
+            }
         }
     }
     return true;
@@ -133,16 +166,20 @@ multicast_pubsub_handle_t *multicast_pubsub_init(const multicast_pubsub_config_t
         goto err_source;
     }
 
-    pubsub->sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-    if (pubsub->sock < 0) {
-        ESP_LOGE(TAG, "create socket failed, errno %d", errno);
-        goto err_lock;
-    }
+    // Only publishing sends from this socket, subscriptions open one each
+    pubsub->sock = -1;
+    if (pubsub->source != NULL) {
+        pubsub->sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+        if (pubsub->sock < 0) {
+            ESP_LOGE(TAG, "create socket failed, errno %d", errno);
+            goto err_lock;
+        }
 
-    uint8_t ttl = config->ttl;
-    if (setsockopt(pubsub->sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
-        ESP_LOGE(TAG, "set multicast TTL failed, errno %d", errno);
-        goto err_sock;
+        uint8_t ttl = config->ttl;
+        if (setsockopt(pubsub->sock, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl)) < 0) {
+            ESP_LOGE(TAG, "set multicast TTL failed, errno %d", errno);
+            goto err_sock;
+        }
     }
 
     ESP_LOGI(TAG, "Multicast pubsub init OK");
@@ -217,34 +254,41 @@ esp_err_t multicast_pubsub_publish(multicast_pubsub_handle_t *handle, multicast_
 /**
  * @brief Receive one message of a subscription and pass it to the callback
  *
- * @param pubsub Handle of multicast pubsub
  * @param subscription Subscription with a readable socket
+ * @param buffer Receive buffer of MULTICAST_PUBSUB_MAX_MESSAGE_SIZE + 1 bytes
  */
-static void receive_message(multicast_pubsub_handle_t *pubsub, const multicast_pubsub_subscription_t *subscription) {
+static void receive_message(const multicast_pubsub_subscription_t *subscription, char *buffer) {
     struct sockaddr_in from;
     socklen_t from_len = sizeof(from);
-    int len = recvfrom(subscription->sock, pubsub->rx_buffer, MULTICAST_PUBSUB_MAX_MESSAGE_SIZE, 0, (struct sockaddr *) &from, &from_len);
+    int len = recvfrom(subscription->sock, buffer, MULTICAST_PUBSUB_MAX_MESSAGE_SIZE, 0, (struct sockaddr *) &from, &from_len);
     if (len < 0) {
         ESP_LOGW(TAG, "receive of type %s failed, errno %d", subscription->type, errno);
         return;
     }
-    pubsub->rx_buffer[len] = '\0';
+    buffer[len] = '\0';
 
     char sender[INET_ADDRSTRLEN] = "?";
     inet_ntop(AF_INET, &from.sin_addr, sender, sizeof(sender));
 
-    cJSON *root = cJSON_ParseWithLength(pubsub->rx_buffer, len);
+    if (!is_shallow_json(buffer, len)) {
+        ESP_LOGW(TAG, "dropped message nested deeper than %d from %s", MULTICAST_PUBSUB_MAX_DEPTH, sender);
+        return;
+    }
+
+    cJSON *root = cJSON_ParseWithLength(buffer, len);
     const cJSON *version = cJSON_GetObjectItemCaseSensitive(root, "v");
     const cJSON *type = cJSON_GetObjectItemCaseSensitive(root, "type");
     const cJSON *source = cJSON_GetObjectItemCaseSensitive(root, "src");
     const cJSON *seq = cJSON_GetObjectItemCaseSensitive(root, "seq");
     const cJSON *data = cJSON_GetObjectItemCaseSensitive(root, "data");
 
-    if (!cJSON_IsNumber(version) || !cJSON_IsString(type) || !cJSON_IsString(source) || !cJSON_IsNumber(seq) || !cJSON_IsObject(data) ||
-        seq->valuedouble < 0 || seq->valuedouble > UINT32_MAX) {
+    // Hold received messages to the same rules as sent ones: a plain source name and a whole sequence number
+    if (!cJSON_IsNumber(version) || !cJSON_IsString(type) || !cJSON_IsString(source) || !is_json_safe(source->valuestring) ||
+        !cJSON_IsNumber(seq) || !cJSON_IsObject(data) ||
+        seq->valuedouble < 0 || seq->valuedouble > UINT32_MAX || seq->valuedouble != (uint32_t) seq->valuedouble) {
         ESP_LOGW(TAG, "dropped invalid message from %s", sender);
-    } else if (version->valueint != MULTICAST_PUBSUB_MESSAGE_VERSION) {
-        ESP_LOGW(TAG, "dropped message with unsupported version %d from %s", version->valueint, sender);
+    } else if (version->valuedouble != MULTICAST_PUBSUB_MESSAGE_VERSION) {
+        ESP_LOGW(TAG, "dropped message with unsupported version %g from %s", version->valuedouble, sender);
     } else if (strcmp(type->valuestring, subscription->type) != 0) {
         // Expected when several types share a group
         ESP_LOGD(TAG, "dropped message of type %s from %s, expected %s", type->valuestring, sender, subscription->type);
@@ -269,6 +313,7 @@ static void receive_message(multicast_pubsub_handle_t *pubsub, const multicast_p
  */
 static void multicast_pubsub_rx_task_entry(void *arg) {
     multicast_pubsub_handle_t *pubsub = (multicast_pubsub_handle_t *) arg;
+    char buffer[MULTICAST_PUBSUB_MAX_MESSAGE_SIZE + 1];
 
     while (1) {
         xSemaphoreTake(pubsub->lock, portMAX_DELAY);
@@ -299,7 +344,7 @@ static void multicast_pubsub_rx_task_entry(void *arg) {
 
         for (size_t i = 0; i < count && ready > 0; i++) {
             if (FD_ISSET(pubsub->subscriptions[i].sock, &readable)) {
-                receive_message(pubsub, &pubsub->subscriptions[i]);
+                receive_message(&pubsub->subscriptions[i], buffer);
                 ready--;
             }
         }

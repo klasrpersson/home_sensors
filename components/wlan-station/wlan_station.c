@@ -141,7 +141,11 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
     ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA, &wifi_config), TAG, "set Wi-Fi config failed");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "start Wi-Fi failed");
     if (config->disable_power_save) {
-        ESP_RETURN_ON_ERROR(esp_wifi_set_ps(WIFI_PS_NONE), TAG, "disable Wi-Fi power save failed");
+        // Wi-Fi is already started and connecting, so carry on with power save instead of failing
+        err = esp_wifi_set_ps(WIFI_PS_NONE);
+        if (err != ESP_OK) {
+            ESP_LOGW(TAG, "disable Wi-Fi power save failed (%s), multicast messages may be delayed", esp_err_to_name(err));
+        }
     }
 
     ESP_LOGI(TAG, "Connecting to %s", ssid);

@@ -29,6 +29,12 @@
 #define MULTICAST_PUBSUB_MAX_MESSAGE_SIZE (512)
 
 /**
+ * @brief Maximum nesting depth of a received message, the envelope and data objects count as two
+ *
+ */
+#define MULTICAST_PUBSUB_MAX_DEPTH (8)
+
+/**
  * @brief Maximum number of subscriptions per handle
  *
  */
@@ -46,7 +52,7 @@ typedef struct multicast_pubsub multicast_pubsub_handle_t;
  */
 typedef struct {
     const char *source; /*!< Name of this device, sent in every message, NULL if only subscribing */
-    uint8_t ttl;        /*!< Multicast TTL, 1 keeps messages on the local network */
+    uint8_t ttl;        /*!< Multicast TTL, 1 keeps messages on the local network, unused if only subscribing */
 } multicast_pubsub_config_t;
 
 /**
@@ -117,7 +123,8 @@ esp_err_t multicast_pubsub_publish(multicast_pubsub_handle_t *handle, multicast_
  * @brief Join the multicast group of a topic and receive its messages
  *
  * Callbacks are called from a receive task that is created by the first subscription. Messages that
- * are not valid JSON, have another envelope version or another type than the topic are dropped.
+ * are not valid JSON, are nested deeper than MULTICAST_PUBSUB_MAX_DEPTH, have another envelope version
+ * or another type than the topic are dropped.
  *
  * @param handle Handle of multicast pubsub
  * @param topic Topic to subscribe to

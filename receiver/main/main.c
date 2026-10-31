@@ -35,9 +35,9 @@ void app_main(void)
     // Join the group once connected
     wlan_station_wait_connected(portMAX_DELAY);
 
+    // No source, as the receiver only subscribes
     multicast_pubsub_config_t pubsub_config = {
-        .source = NULL,
-        .ttl = 1
+        .source = NULL
     };
     multicast_pubsub_handle_t *pubsub = multicast_pubsub_init(&pubsub_config);
     if (pubsub == NULL) {
