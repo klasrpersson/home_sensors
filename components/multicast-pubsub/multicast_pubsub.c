@@ -38,6 +38,10 @@ static bool is_json_safe(const char *str) {
  * @return multicast_pubsub_handle_t handle of multicast pubsub, NULL on failure
  */
 multicast_pubsub_handle_t *multicast_pubsub_init(const multicast_pubsub_config_t *config) {
+    if (config == NULL) {
+        ESP_LOGE(TAG, "config must be set");
+        return NULL;
+    }
     if (!is_json_safe(config->source)) {
         ESP_LOGE(TAG, "source must be a non-empty string without quotes, backslashes or control characters");
         return NULL;

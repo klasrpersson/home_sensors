@@ -28,19 +28,24 @@ def main():
         payload, (address, _) = sock.recvfrom(2048)
         try:
             message = json.loads(payload)
-            key = (message["src"], message["type"])
-            seq = message["seq"]
-            data = message["data"]
+            src, msg_type, seq, data = message["src"], message["type"], message["seq"], message["data"]
+            if not (isinstance(src, str) and isinstance(msg_type, str) and isinstance(seq, int)) or isinstance(seq, bool):
+                raise TypeError("src and type must be strings and seq an integer")
         except (ValueError, KeyError, TypeError):
             print(f"{address}: invalid message {payload!r}", flush=True)
             continue
 
-        missed = ""
-        if key in last_seq and seq > last_seq[key] + 1:
-            missed = f" (missed {seq - last_seq[key] - 1})"
+        # Include the address, so devices that kept the same name are tracked separately
+        key = (address, src, msg_type)
+        note = ""
+        if key in last_seq:
+            if seq > last_seq[key] + 1:
+                note = f" (missed {seq - last_seq[key] - 1})"
+            elif seq < last_seq[key]:
+                note = " (sequence restarted)"
         last_seq[key] = seq
 
-        print(f"{address} {message['src']} {message['type']} #{seq}{missed}: {json.dumps(data)}", flush=True)
+        print(f"{address} {src} {msg_type} #{seq}{note}: {json.dumps(data)}", flush=True)
 
 
 if __name__ == "__main__":

@@ -39,8 +39,14 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
             }
     };
 
-    size_t ssid_len = strlen(config->ssid);
-    size_t password_len = strlen(config->password);
+    if (config == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    const char *ssid = config->ssid != NULL ? config->ssid : "";
+    const char *password = config->password != NULL ? config->password : "";
+
+    size_t ssid_len = strlen(ssid);
+    size_t password_len = strlen(password);
     if (ssid_len == 0) {
         ESP_LOGE(TAG, "Wi-Fi SSID is not set");
         return ESP_ERR_INVALID_ARG;
@@ -49,8 +55,13 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
         ESP_LOGE(TAG, "Wi-Fi SSID or password is too long");
         return ESP_ERR_INVALID_ARG;
     }
-    memcpy(wifi_config.sta.ssid, config->ssid, ssid_len);
-    memcpy(wifi_config.sta.password, config->password, password_len);
+    // WPA2 and WPA3 passwords have at least 8 characters, a shorter one could never connect
+    if (password_len > 0 && password_len < 8) {
+        ESP_LOGE(TAG, "Wi-Fi password must be at least 8 characters, or empty for an open network");
+        return ESP_ERR_INVALID_ARG;
+    }
+    memcpy(wifi_config.sta.ssid, ssid, ssid_len);
+    memcpy(wifi_config.sta.password, password, password_len);
     wifi_config.sta.threshold.authmode = password_len == 0 ? WIFI_AUTH_OPEN : WIFI_AUTH_WPA2_PSK;
 
     esp_err_t err = nvs_flash_init();
@@ -81,7 +92,7 @@ esp_err_t wlan_station_start(const wlan_station_config_t *config) {
     ESP_RETURN_ON_ERROR(esp_wifi_set_config(WIFI_IF_STA, &wifi_config), TAG, "set Wi-Fi config failed");
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "start Wi-Fi failed");
 
-    ESP_LOGI(TAG, "Connecting to %s", config->ssid);
+    ESP_LOGI(TAG, "Connecting to %s", ssid);
 
     return ESP_OK;
 }
