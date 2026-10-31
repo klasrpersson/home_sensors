@@ -23,10 +23,14 @@ void app_main(void)
 {
     vindriktning_parser_config_t parser_config = VINDRIKTNING_PARSER_CONFIG_DEFAULT();
     vindriktning_parser_handle_t *handle = vindriktning_parser_init(&parser_config);
+    if (handle == NULL) {
+        ESP_LOGE(TAG, "Failed to init Vindriktning parser");
+        return;
+    }
 
     ESP_LOGI(TAG, "Starting main task");
     
-    BaseType_t err = xTaskCreate(main_task_entry, "main_task", 32768, handle, uxTaskPriorityGet(NULL), NULL);
+    BaseType_t err = xTaskCreate(main_task_entry, "main_task", 4096, handle, uxTaskPriorityGet(NULL), NULL);
 
     if (err != pdPASS) {
         ESP_LOGE(TAG, "Failed to create main task");

@@ -12,14 +12,21 @@
 #define IKEA_UART_RXD (CONFIG_UART_RXD)
 
 /**
+ * @brief Number of measurements the reported values are averaged over
+ *
+ */
+#define VINDRIKTNING_PARSER_AVERAGE_SAMPLES (3)
+
+/**
  * @brief Vindriktning parser library runtime structure
  *
  */
 typedef struct {
-    int measurement_no;
-    uint16_t pm1[3];
-    uint16_t pm10[3];
-    uint16_t pm25[3];
+    int measurement_no;                          /*!< Slot the next measurement is stored in */
+    int measurement_count;                       /*!< Number of measurements stored, up to VINDRIKTNING_PARSER_AVERAGE_SAMPLES */
+    uint16_t pm1[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
+    uint16_t pm10[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
+    uint16_t pm25[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
     uart_port_t uart_port;                       /*!< Uart port number */
     char *buffer;                             /*!< Runtime buffer */
     TaskHandle_t tsk_hdl;                        /*!< P1 Parser task handle */

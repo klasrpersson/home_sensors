@@ -55,7 +55,7 @@ static void vindriktning_parser_task_entry(void *arg) {
     while (1) {
         int len = uart_read_bytes(esp_vindriktning->uart_port, esp_vindriktning->buffer, (VINDRIKTNING_PARSER_RUNTIME_BUFFER_SIZE - 1), 20 / portTICK_PERIOD_MS);
 
-        if (len == 0)
+        if (len <= 0)
         {
             vTaskDelay(100 / portTICK_PERIOD_MS);
             continue;
@@ -82,34 +82,33 @@ static void vindriktning_parser_task_entry(void *arg) {
         ESP_LOGD(TAG, "PM10=%d", pm10);
         ESP_LOGD(TAG, "PM25=%d", pm25);
 
-        esp_vindriktning->pm1[esp_vindriktning->measurement_no] = pm1 / 3.0f;
-        esp_vindriktning->pm10[esp_vindriktning->measurement_no] = pm10 / 3.0f;
-        esp_vindriktning->pm25[esp_vindriktning->measurement_no] = pm25 / 3.0f;
-
-        float avgPM1 = 0.0f;
-        for (uint8_t i = 0; i < 3; ++i) {
-            avgPM1 += esp_vindriktning->pm1[i];
+        esp_vindriktning->pm1[esp_vindriktning->measurement_no] = pm1;
+        esp_vindriktning->pm10[esp_vindriktning->measurement_no] = pm10;
+        esp_vindriktning->pm25[esp_vindriktning->measurement_no] = pm25;
+        if (esp_vindriktning->measurement_count < VINDRIKTNING_PARSER_AVERAGE_SAMPLES) {
+            esp_vindriktning->measurement_count++;
         }
 
-        float avgPM10 = 0.0f;
-        for (uint8_t i = 0; i < 3; ++i) {
-            avgPM10 += esp_vindriktning->pm10[i];
-        }
-
-        float avgPM25 = 0.0f;
-        for (uint8_t i = 0; i < 3; ++i) {
-            avgPM25 += esp_vindriktning->pm25[i];
+        // Average only the samples received so far, so the first readings are not pulled towards zero
+        int count = esp_vindriktning->measurement_count;
+        uint32_t sum_pm1 = 0;
+        uint32_t sum_pm10 = 0;
+        uint32_t sum_pm25 = 0;
+        for (int i = 0; i < count; ++i) {
+            sum_pm1 += esp_vindriktning->pm1[i];
+            sum_pm10 += esp_vindriktning->pm10[i];
+            sum_pm25 += esp_vindriktning->pm25[i];
         }
 
         vindriktning_read_event_t evt = {
-            .pm1 = avgPM1,
-            .pm10 = avgPM10,
-            .pm25 = avgPM25
+            .pm1 = (sum_pm1 + count / 2) / count,
+            .pm10 = (sum_pm10 + count / 2) / count,
+            .pm25 = (sum_pm25 + count / 2) / count
         };
 
         xQueueSend(esp_vindriktning->event_queue, &evt, pdMS_TO_TICKS(100));
 
-        esp_vindriktning->measurement_no = (esp_vindriktning->measurement_no + 1) % 3;
+        esp_vindriktning->measurement_no = (esp_vindriktning->measurement_no + 1) % VINDRIKTNING_PARSER_AVERAGE_SAMPLES;
     }
 }
 
@@ -123,7 +122,7 @@ vindriktning_parser_handle_t *vindriktning_parser_init(const vindriktning_parser
     vindriktning_parser_handle_t *esp_vindriktning = calloc(1, sizeof(vindriktning_parser_handle_t));
     if (!esp_vindriktning) {
         ESP_LOGE(TAG, "calloc memory for esp_vindriktning failed");
-        goto err_gps;
+        goto err_handle;
     }
     esp_vindriktning->buffer = calloc(1, VINDRIKTNING_PARSER_RUNTIME_BUFFER_SIZE);
     if (!esp_vindriktning->buffer) {
@@ -134,7 +133,11 @@ vindriktning_parser_handle_t *vindriktning_parser_init(const vindriktning_parser
     /* Set attributes */
     esp_vindriktning->uart_port = config->uart.uart_port;
 
-    esp_vindriktning->event_queue = xQueueCreate(10, sizeof(vindriktning_read_event_t));
+    esp_vindriktning->event_queue = xQueueCreate(config->uart.event_queue_size, sizeof(vindriktning_read_event_t));
+    if (!esp_vindriktning->event_queue) {
+        ESP_LOGE(TAG, "create event queue failed");
+        goto err_queue;
+    }
 
     /* Install UART driver */
     uart_config_t uart_config = {
@@ -165,7 +168,7 @@ vindriktning_parser_handle_t *vindriktning_parser_init(const vindriktning_parser
     BaseType_t err = xTaskCreate(
             vindriktning_parser_task_entry,
             "vindriktning_parser",
-            2048,
+            3072,
             esp_vindriktning,
             12,
             &esp_vindriktning->tsk_hdl);
@@ -179,12 +182,14 @@ vindriktning_parser_handle_t *vindriktning_parser_init(const vindriktning_parser
 
     /*Error Handling*/
     err_task_create:
-    err_uart_install:
-    uart_driver_delete(esp_vindriktning->uart_port);
     err_uart_config:
-    err_buffer:
+    uart_driver_delete(esp_vindriktning->uart_port);
+    err_uart_install:
+    vQueueDelete(esp_vindriktning->event_queue);
+    err_queue:
     free(esp_vindriktning->buffer);
-    err_gps:
+    err_buffer:
     free(esp_vindriktning);
+    err_handle:
     return NULL;
 }
