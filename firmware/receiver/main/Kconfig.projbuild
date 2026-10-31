@@ -1,4 +1,4 @@
-menu "Vindriktning Receiver Configuration"
+menu "Receiver Configuration"
 
     menu "Multicast"
         config MULTICAST_GROUP
@@ -6,14 +6,14 @@ menu "Vindriktning Receiver Configuration"
             default "239.255.10.1"
             help
                 IPv4 multicast group to receive air quality messages from.
-                Must match the group set in the sensor firmware.
+                Must match the group the sensors send to.
 
         config MULTICAST_PORT
             int "UDP port"
             range 1 65535
             default 45000
             help
-                UDP port that messages are sent to. Must match the port set in the sensor firmware.
+                UDP port that messages are sent to. Must match the port the sensors send to.
     endmenu
 
 endmenu

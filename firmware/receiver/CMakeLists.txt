@@ -7,4 +7,4 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 # Only build the components that main depends on
 idf_build_set_property(MINIMAL_BUILD ON)
 
-project(vindriktning-receiver)
+project(receiver)
