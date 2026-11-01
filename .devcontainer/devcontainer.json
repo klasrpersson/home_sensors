@@ -1,0 +1,32 @@
+{
+  "name": "ESP-IDF",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "DOCKER_TAG": "v6.1"
+    }
+  },
+  "remoteUser": "ubuntu",
+  "containerUser": "ubuntu",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "idf.showOnboardingOnInit": false,
+        "idf.toolsPath": "/opt/esp",
+        "idf.espIdfPath": "/opt/esp/idf",
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        "espressif.esp-idf-extension",
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "ms-python.python"
+      ]
+    }
+  },
+  "runArgs": [
+    "--privileged",
+    "--network=host",
+    "--volume=/dev:/dev"
+  ]
+}
