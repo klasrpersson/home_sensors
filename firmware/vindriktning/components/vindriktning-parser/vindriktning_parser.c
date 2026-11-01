@@ -2,6 +2,7 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "vindriktning_parser.h"
 
@@ -161,6 +162,13 @@ vindriktning_parser_handle_t *vindriktning_parser_init(const vindriktning_parser
 
     if (uart_set_pin(esp_vindriktning->uart_port, UART_PIN_NO_CHANGE, IKEA_UART_RXD, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK) {
         ESP_LOGE(TAG, "config uart gpio failed");
+        goto err_uart_config;
+    }
+
+    /* With the RX pin's internal pull-up on, frames from the Vindriktning's REST line arrive with bit
+     * errors. Some pins, like the console RX pin, have the pull-up on from reset. */
+    if (gpio_pullup_dis(IKEA_UART_RXD) != ESP_OK) {
+        ESP_LOGE(TAG, "disable uart rx pull-up failed");
         goto err_uart_config;
     }
 
