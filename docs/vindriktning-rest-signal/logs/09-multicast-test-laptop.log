@@ -1,0 +1,8 @@
+# tools/multicast_receiver.py, 60 s
+Listening on 239.255.10.1 port 45000
+
+# scripts/sniff.py on the Wi-Fi interface, 55 s (packets from the ESP, to 239.x.x.x, or IGMP)
+"python3" has been detected
+* Checking python dependencies ... OK
+* Detecting outdated tools in system ... OK - no outdated tools found
+done, 0 matching packets
