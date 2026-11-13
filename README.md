@@ -89,6 +89,23 @@ The device then restarts into the new firmware, which has to confirm that it wor
 
 Keep a copy of `keys/` somewhere safe. Without `signing_key.pem`, devices can only be updated over USB. The token and the server key are built into the firmware like the Wi-Fi password, so anyone holding a board can read them. They can still not make it accept an image over Wi-Fi without the signing key. Hardware Secure Boot and flash encryption, which would also protect against that, are not enabled, as they cannot be turned off again.
 
+Testing in the emulator
+-----------------------
+
+`tools/emu_test.py` runs the sensor firmware in Espressif's [esp-emu](https://github.com/espressif/esp-emulator) emulator, without a board. It plays the PM1006 on the emulated UART1 and sends updates to the emulated OTA server, and checks that:
+
+- frames of the wrong length or with a wrong checksum are rejected, and PM2.5 is averaged over three frames,
+- updates with a wrong token, for another firmware or without a signature are refused, and the tool refuses a server without the pinned certificate,
+- a new firmware goes back to the previous one if it does not confirm in time or restarts first, and updates are refused until it confirms,
+- a firmware that confirms after its first measurement stays after a restart.
+
+It needs two builds: the firmware, and a test firmware with another version and a 20 second confirm timeout, which it updates to. In an ESP-IDF environment, such as the dev container, `--build` makes both. esp-emu runs outside it too, so the builds can also be made in the dev container and the tests run on the computer:
+
+    python3 tools/emu_test.py --build    # with idf.py and esp-emu
+    python3 tools/emu_test.py            # with existing builds
+
+The emulator does not pass multicast out of its network, so the measurement and diagnostics messages are not checked. Tested with esp-emu 1.0.0.
+
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this
 software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR

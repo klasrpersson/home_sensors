@@ -37,8 +37,8 @@ def find_device(name, port, interface, timeout):
     return None
 
 
-def push(address, port, image, token, cert):
-    """Upload the image, return the HTTP status and the device's answer."""
+def push(address, port, image, token, cert, progress=None):
+    """Upload the image, return the HTTP status and the device's answer. Progress defaults to on in a terminal."""
     # The devices share one self-signed certificate, so it is trusted directly instead of by host name
     context = ssl.create_default_context(cafile=cert)
     context.check_hostname = False
@@ -51,7 +51,8 @@ def push(address, port, image, token, cert):
     connection.putheader("Content-Length", str(size))
     connection.endheaders()
 
-    progress = sys.stdout.isatty()
+    if progress is None:
+        progress = sys.stdout.isatty()
     sent = 0
     with open(image, "rb") as f:
         while chunk := f.read(4096):
