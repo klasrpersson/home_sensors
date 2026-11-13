@@ -3,3 +3,5 @@ managed_components/
 sdkconfig.old
 sdkconfig
 wifi_credentials.h
+keys/
+__pycache__/

@@ -11,13 +11,15 @@ Repository layout
     firmware/vindriktning/   ESP32-C3 firmware that reads an IKEA Vindriktning and publishes the measurements
     firmware/receiver/       ESP32-C6 firmware that receives the measurements and logs them
     components/              ESP-IDF components shared by the firmwares
-    tools/                   Tools for testing from a computer
+    tools/                   Tools for testing and updating from a computer
 
 Each firmware is a separate ESP-IDF project, built from its own directory. All components in `components/` are available to every firmware, and only the ones a firmware uses are built. Components that only one firmware uses live in that firmware's own `components/` directory.
 
 Settings that differ from the ESP-IDF defaults are in each firmware's `sdkconfig.defaults`. The first build creates `sdkconfig` from it, and menuconfig changes are saved there. `sdkconfig` is ignored by git, so to change a setting for everyone, run `idf.py save-defconfig`, which writes the settings that differ from the defaults to `sdkconfig.defaults`, or edit that file by hand.
 
 All firmwares connect to the Wi-Fi network set in `wifi_credentials.h` at the repository root. Before building, copy `wifi_credentials.example.h` to `wifi_credentials.h` and set your network in it. git ignores `wifi_credentials.h`, so the password stays on your machine.
+
+The sensor firmware can be updated over Wi-Fi, see [Over-the-air updates](#over-the-air-updates). It needs keys in `keys/` at the repository root, which git also ignores. Create them once with `tools/generate_ota_keys.sh`.
 
 Messages
 --------
@@ -46,7 +48,9 @@ Reads PM2.5 measurements from the PM1006 particle sensor inside an IKEA Vindrikt
     cd firmware/vindriktning
     idf.py menuconfig
     idf.py build
-    idf.py -p PORT flash monitor
+    idf.py -p PORT erase-flash flash monitor
+
+`erase-flash` is only needed the first time a board gets this firmware with over-the-air updates, as it brings a new partition table. After that, updates can be sent over Wi-Fi.
 
 The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. Set the device name, multicast group and port in the same menu. The diagnostics group, port and interval are under "Component config" → "Device diagnostics", where an interval of 0 turns diagnostics off.
 
@@ -66,6 +70,24 @@ Each message is logged with the device name and IP address of its sender:
     I (8456) Receiver: diagnostics from vindriktning (192.168.1.23) #7: {"rssi":-66,"uptime":420}
 
 The multicast group and port can be changed under "Receiver Configuration" in `idf.py menuconfig`, and the diagnostics group and port under "Component config" → "Device diagnostics". They must match the sensors. Gaps in `#` mean messages were lost on the way.
+
+Over-the-air updates
+--------------------
+
+The sensor firmware runs an HTTPS server, the `ota-server` component, that takes new firmware over Wi-Fi. To build and send one, from the repository root:
+
+    (cd firmware/vindriktning && idf.py build)
+    python3 tools/ota_push.py tova firmware/vindriktning/build/vindriktning.bin
+
+`tools/ota_push.py` finds the device by the name in its messages, or by `--ip`. A device only takes an update when:
+
+- the connection uses the certificate in `keys/ota_server_cert.pem`, which the tool trusts and nothing else,
+- the request has the token in `keys/ota_token`,
+- the image is the same firmware as the one running, and is signed with `keys/signing_key.pem`. The build signs it.
+
+The device then restarts into the new firmware, which has to confirm that it works by sending its first measurement within 5 minutes. If it does not, or restarts before that, the device goes back to the previous firmware. Updates are refused until the running firmware has confirmed.
+
+Keep a copy of `keys/` somewhere safe. Without `signing_key.pem`, devices can only be updated over USB. The token and the server key are built into the firmware like the Wi-Fi password, so anyone holding a board can read them. They can still not make it accept an image over Wi-Fi without the signing key. Hardware Secure Boot and flash encryption, which would also protect against that, are not enabled, as they cannot be turned off again.
 
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this

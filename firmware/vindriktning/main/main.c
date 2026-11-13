@@ -6,6 +6,7 @@
 #include "wlan_station.h"
 #include "multicast_pubsub.h"
 #include "device_diagnostics.h"
+#include "ota_server.h"
 
 static const char *TAG = "Vindriktning";
 
@@ -24,6 +25,7 @@ _Noreturn static void main_task_entry(void *args) {
     main_task_context_t *context = (main_task_context_t *) args;
     
     vindriktning_read_event_t event;
+    bool confirmed = false;
     for (;;)
     {
         if (xQueueReceive(context->parser->event_queue, &event, portMAX_DELAY))
@@ -34,7 +36,10 @@ _Noreturn static void main_task_entry(void *args) {
             {
                 char data[64];
                 snprintf(data, sizeof(data), "{\"pm25\":%u}", event.pm25);
-                multicast_pubsub_publish(context->publisher, &air_quality_topic, data);
+                if (multicast_pubsub_publish(context->publisher, &air_quality_topic, data) == ESP_OK && !confirmed) {
+                    // The firmware reads the sensor and reaches the network, so keep it after an update
+                    confirmed = ota_server_mark_valid() == ESP_OK;
+                }
             }
         }
     }
@@ -44,22 +49,25 @@ void app_main(void)
 {
     static main_task_context_t context;
 
-    vindriktning_parser_config_t parser_config = VINDRIKTNING_PARSER_CONFIG_DEFAULT();
-    context.parser = vindriktning_parser_init(&parser_config);
-    if (context.parser == NULL) {
-        ESP_LOGE(TAG, "Failed to init Vindriktning parser");
-        return;
-    }
-
     wlan_station_config_t wifi_config = {
         .ssid = WIFI_SSID,
         .password = WIFI_PASSWORD
     };
 
+    bool wifi_started = wlan_station_start(&wifi_config) == ESP_OK;
+    if (!wifi_started) {
+        ESP_LOGE(TAG, "Failed to start Wi-Fi, measurements will not be published");
+    } else {
+        // Before anything that can fail, so a broken firmware can still be replaced
+        if (ota_server_start() != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to start the update server");
+        }
+    }
+
     // Check the multicast settings now, instead of failing on every measurement
     if (multicast_pubsub_check_topic(&air_quality_topic) != ESP_OK) {
         ESP_LOGE(TAG, "Invalid multicast group, measurements will not be published");
-    } else if (wlan_station_start(&wifi_config) == ESP_OK) {
+    } else if (wifi_started) {
         multicast_pubsub_config_t publisher_config = {
             .source = CONFIG_MULTICAST_SOURCE,
             .ttl = CONFIG_MULTICAST_TTL
@@ -72,8 +80,13 @@ void app_main(void)
                 ESP_LOGE(TAG, "Failed to start diagnostics");
             }
         }
-    } else {
-        ESP_LOGE(TAG, "Failed to start Wi-Fi, measurements will not be published");
+    }
+
+    vindriktning_parser_config_t parser_config = VINDRIKTNING_PARSER_CONFIG_DEFAULT();
+    context.parser = vindriktning_parser_init(&parser_config);
+    if (context.parser == NULL) {
+        ESP_LOGE(TAG, "Failed to init Vindriktning parser");
+        return;
     }
 
     ESP_LOGI(TAG, "Starting main task");

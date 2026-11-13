@@ -1,0 +1,19 @@
+menu "OTA server"
+
+    config OTA_SERVER_PORT
+        int "HTTPS port"
+        range 1 65535
+        default 443
+        help
+            TCP port of the update server. tools/ota_push.py uses 443 unless told otherwise.
+
+    config OTA_SERVER_CONFIRM_TIMEOUT
+        int "Confirm timeout (s)"
+        range 10 86400
+        default 300
+        help
+            Seconds a new firmware has to confirm that it works, by calling
+            ota_server_mark_valid(). If it does not, the device goes back to the
+            previous firmware.
+
+endmenu
