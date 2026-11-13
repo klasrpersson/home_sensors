@@ -24,19 +24,22 @@
 typedef struct {
     int measurement_no;                          /*!< Slot the next measurement is stored in */
     int measurement_count;                       /*!< Number of measurements stored, up to VINDRIKTNING_PARSER_AVERAGE_SAMPLES */
-    uint16_t pm1[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
-    uint16_t pm10[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
-    uint16_t pm25[VINDRIKTNING_PARSER_AVERAGE_SAMPLES];
+    uint16_t pm25[VINDRIKTNING_PARSER_AVERAGE_SAMPLES]; /*!< PM2.5 measurements in µg/m³ */
     uart_port_t uart_port;                       /*!< Uart port number */
     char *buffer;                             /*!< Runtime buffer */
     TaskHandle_t tsk_hdl;                        /*!< P1 Parser task handle */
     QueueHandle_t event_queue;                   /*!< UART event queue handle */
 } vindriktning_parser_handle_t;
 
+/**
+ * @brief Averaged measurement
+ *
+ * The PM1006 only documents PM2.5. Its frames have other fields at the positions where the PM1006K has
+ * PM1 and PM10, but they hold other, undocumented values, so they are not reported.
+ *
+ */
 typedef struct {
-    uint16_t pm1;
-    uint16_t pm10;
-    uint16_t pm25;
+    uint16_t pm25; /*!< PM2.5 in µg/m³ */
 } vindriktning_read_event_t;
 
 /**

@@ -119,7 +119,7 @@ In suggested order:
    - Measure at GPIO20 against the Beetle's GND at 0.2 V/div (8 mV per step), with the pull-up on and off, to see exactly how much the change moves the level.
 4. **Powering the Beetle from the Vindriktning through VIN** is untested (capture 05). Check that the Beetle starts and joins Wi-Fi before relying on it.
 5. **Sensor Wi-Fi** (see [Network test](#network-test)): create it, put its name and password in `wifi_credentials.h`, flash both firmwares, and run `tools/multicast_receiver.py` on a computer on that network.
-6. **PM1 and PM10 values.** The firmware reports PM1 at 699 to 735 and PM10 at 183 to 366, while PM2.5 is 3 to 14. The PM1006's maker only documents PM2.5. The other two values come from undocumented fields and are probably not µg/m³ readings.
+6. **PM1 and PM10 values.** The firmware reports PM1 at 699 to 735 and PM10 at 183 to 366, while PM2.5 is 3 to 14. The PM1006's maker only documents PM2.5. The other two values come from undocumented fields and are probably not µg/m³ readings. Done: the firmware now reads and publishes only PM2.5.
 
 Network test
 ------------

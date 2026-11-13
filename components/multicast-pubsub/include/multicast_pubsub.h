@@ -7,7 +7,7 @@
 /**
  * Messages are sent as UDP datagrams to the multicast group of their type, as JSON:
  *
- *   {"v":1,"type":"air_quality","src":"livingroom","seq":42,"data":{"pm1":3,"pm10":6,"pm25":5}}
+ *   {"v":1,"type":"air_quality","src":"livingroom","seq":42,"data":{"pm25":5}}
  *
  * v:    envelope version, MULTICAST_PUBSUB_MESSAGE_VERSION
  * type: message type, receivers join the group of the types they want

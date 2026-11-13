@@ -73,18 +73,15 @@ static void vindriktning_parser_task_entry(void *arg) {
         // sample data:
         //  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19
         // 16 11 0b 00 00 00 0c 00 00 03 cb 00 00 00 0c 01 00 00 00 e7
-        //               |pm2_5|     |pm1_0|     |pm10 |        | CRC |
+        //               |pm2_5|                                 |CRC|
+        //
+        // The PM1006 only documents PM2.5. The PM1006K has PM1 in bytes 9-10 and PM10 in bytes 13-14, but on
+        // the PM1006 those bytes hold other values, e.g. 971 above with a PM2.5 of 12, so they are not read.
 
         uint16_t pm25 = esp_vindriktning->buffer[5] << 8 | esp_vindriktning->buffer[6];
-        uint16_t pm1 = esp_vindriktning->buffer[9] << 8 | esp_vindriktning->buffer[10];
-        uint16_t pm10 = esp_vindriktning->buffer[13] << 8 | esp_vindriktning->buffer[14];
 
-        ESP_LOGD(TAG, "PM1=%d", pm1);
-        ESP_LOGD(TAG, "PM10=%d", pm10);
         ESP_LOGD(TAG, "PM25=%d", pm25);
 
-        esp_vindriktning->pm1[esp_vindriktning->measurement_no] = pm1;
-        esp_vindriktning->pm10[esp_vindriktning->measurement_no] = pm10;
         esp_vindriktning->pm25[esp_vindriktning->measurement_no] = pm25;
         if (esp_vindriktning->measurement_count < VINDRIKTNING_PARSER_AVERAGE_SAMPLES) {
             esp_vindriktning->measurement_count++;
@@ -92,18 +89,12 @@ static void vindriktning_parser_task_entry(void *arg) {
 
         // Average only the samples received so far, so the first readings are not pulled towards zero
         int count = esp_vindriktning->measurement_count;
-        uint32_t sum_pm1 = 0;
-        uint32_t sum_pm10 = 0;
         uint32_t sum_pm25 = 0;
         for (int i = 0; i < count; ++i) {
-            sum_pm1 += esp_vindriktning->pm1[i];
-            sum_pm10 += esp_vindriktning->pm10[i];
             sum_pm25 += esp_vindriktning->pm25[i];
         }
 
         vindriktning_read_event_t evt = {
-            .pm1 = (sum_pm1 + count / 2) / count,
-            .pm10 = (sum_pm10 + count / 2) / count,
             .pm25 = (sum_pm25 + count / 2) / count
         };
 

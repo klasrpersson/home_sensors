@@ -24,7 +24,7 @@ Messages
 
 Measurements are sent over Wi-Fi as UDP multicast, so any device on the network can receive them without a broker. Each message type has its own multicast group, and receivers join the groups of the types they want. Messages are JSON:
 
-    {"v":1,"type":"air_quality","src":"vindriktning","seq":42,"data":{"pm1":3,"pm10":6,"pm25":5}}
+    {"v":1,"type":"air_quality","src":"vindriktning","seq":42,"data":{"pm25":5}}
 
 `src` is the device name and `seq` counts up per message type, so receivers can tell devices apart and notice lost messages.
 
@@ -35,7 +35,7 @@ To see the messages on a computer on the same network, run from the repository r
 IKEA Vindriktning
 -----------------
 
-Reads PM1, PM2.5 and PM10 measurements from the particle sensor inside an IKEA Vindriktning air quality monitor over UART, and publishes them as `air_quality` messages. Build and flash from `firmware/vindriktning`:
+Reads PM2.5 measurements from the PM1006 particle sensor inside an IKEA Vindriktning air quality monitor over UART, and publishes them as `air_quality` messages. The PM1006 only measures PM2.5; the PM1 and PM10 fields that some projects read are only defined on the PM1006K. Build and flash from `firmware/vindriktning`:
 
     cd firmware/vindriktning
     idf.py menuconfig
@@ -56,7 +56,7 @@ Receives the air quality messages and logs them. Build and flash from `firmware/
 
 Each message is logged with the device name and IP address of its sender:
 
-    I (8123) Receiver: air_quality from vindriktning (192.168.1.23) #42: {"pm1":3,"pm10":6,"pm25":5}
+    I (8123) Receiver: air_quality from vindriktning (192.168.1.23) #42: {"pm25":5}
 
 The multicast group and port can be changed under "Receiver Configuration" in `idf.py menuconfig`, and must match the sensors. Gaps in `#` mean messages were lost on the way.
 

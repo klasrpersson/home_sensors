@@ -27,12 +27,12 @@ _Noreturn static void main_task_entry(void *args) {
     {
         if (xQueueReceive(context->parser->event_queue, &event, portMAX_DELAY))
         {
-            ESP_LOGI(TAG, "AVG PM1=%u, PM10=%u, PM25=%u", event.pm1, event.pm10, event.pm25);
+            ESP_LOGI(TAG, "AVG PM25=%u", event.pm25);
 
             if (context->publisher != NULL)
             {
                 char data[64];
-                snprintf(data, sizeof(data), "{\"pm1\":%u,\"pm10\":%u,\"pm25\":%u}", event.pm1, event.pm10, event.pm25);
+                snprintf(data, sizeof(data), "{\"pm25\":%u}", event.pm25);
                 multicast_pubsub_publish(context->publisher, &air_quality_topic, data);
             }
         }
