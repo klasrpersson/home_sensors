@@ -29,6 +29,12 @@ static const char *TAG = "ota_server";
 #define OTA_SERVER_RECV_TIMEOUT_RETRIES (3)
 
 /**
+ * @brief Largest refused upload that is read to the end, so its sender gets the answer
+ *
+ */
+#define OTA_SERVER_MAX_DISCARD_SIZE (4 * 1024 * 1024)
+
+/**
  * @brief Bytes at the start of an app image that hold its description
  *
  */
@@ -74,15 +80,47 @@ static bool is_authorized(httpd_req_t *req) {
 }
 
 /**
+ * @brief Read and drop the rest of an upload
+ *
+ * Closing a connection with unread data makes TCP reset it, and the sender would lose the answer. Uploads
+ * larger than OTA_SERVER_MAX_DISCARD_SIZE are not read, their sender gets the reset.
+ *
+ * @param req Request
+ * @param received Bytes of the upload already read
+ */
+static void discard_upload(httpd_req_t *req, size_t received) {
+    if (req->content_len > OTA_SERVER_MAX_DISCARD_SIZE) {
+        return;
+    }
+
+    char scrap[256];
+    int timeouts = 0;
+    while (received < req->content_len) {
+        size_t want = req->content_len - received;
+        int len = httpd_req_recv(req, scrap, want < sizeof(scrap) ? want : sizeof(scrap));
+        if (len == HTTPD_SOCK_ERR_TIMEOUT && ++timeouts <= OTA_SERVER_RECV_TIMEOUT_RETRIES) {
+            continue;
+        }
+        if (len <= 0) {
+            return;
+        }
+        timeouts = 0;
+        received += len;
+    }
+}
+
+/**
  * @brief Send an error response, after which the connection is closed
  *
  * @param req Request
  * @param status HTTP status, e.g. "400 Bad Request"
  * @param message Explanation for the sender
- * @return ESP_FAIL, so the server closes the connection without reading the rest of the upload
+ * @param received Bytes of the upload already read, the rest is read before answering
+ * @return ESP_FAIL, so the server closes the connection
  */
-static esp_err_t send_error(httpd_req_t *req, const char *status, const char *message) {
+static esp_err_t send_error(httpd_req_t *req, const char *status, const char *message, size_t received) {
     ESP_LOGW(TAG, "Update refused: %s", message);
+    discard_upload(req, received);
     httpd_resp_set_status(req, status);
     httpd_resp_set_type(req, "text/plain");
     httpd_resp_sendstr(req, message);
@@ -125,20 +163,20 @@ static bool is_same_project(const char *image, const char **error) {
  */
 static esp_err_t ota_post_handler(httpd_req_t *req) {
     if (!is_authorized(req)) {
-        return send_error(req, "401 Unauthorized", "Missing or wrong token");
+        return send_error(req, "401 Unauthorized", "Missing or wrong token", 0);
     }
 
     const esp_partition_t *partition = esp_ota_get_next_update_partition(NULL);
     if (partition == NULL) {
-        return send_error(req, "500 Internal Server Error", "No OTA partition to write to");
+        return send_error(req, "500 Internal Server Error", "No OTA partition to write to", 0);
     }
     if (req->content_len < OTA_SERVER_IMAGE_HEADER_SIZE || req->content_len > partition->size) {
-        return send_error(req, "400 Bad Request", "Image size does not fit the OTA partition");
+        return send_error(req, "400 Bad Request", "Image size does not fit the OTA partition", 0);
     }
 
     char *buffer = malloc(OTA_SERVER_BUFFER_SIZE);
     if (buffer == NULL) {
-        return send_error(req, "500 Internal Server Error", "Out of memory");
+        return send_error(req, "500 Internal Server Error", "Out of memory", 0);
     }
 
     esp_err_t result = ESP_FAIL;
@@ -170,18 +208,18 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
                 continue;
             }
             if (!is_same_project(buffer, &error)) {
-                result = send_error(req, "400 Bad Request", error);
+                result = send_error(req, "400 Bad Request", error, received);
                 goto done;
             }
 
             esp_err_t err = esp_ota_begin(partition, OTA_WITH_SEQUENTIAL_WRITES, &ota);
             if (err == ESP_ERR_OTA_ROLLBACK_INVALID_STATE) {
-                result = send_error(req, "409 Conflict", "Running firmware is not confirmed yet");
+                result = send_error(req, "409 Conflict", "Running firmware is not confirmed yet", received);
                 goto done;
             }
             if (err != ESP_OK) {
                 ESP_LOGE(TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
-                result = send_error(req, "500 Internal Server Error", "Could not start the update");
+                result = send_error(req, "500 Internal Server Error", "Could not start the update", received);
                 goto done;
             }
             started = true;
@@ -190,7 +228,7 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
         esp_err_t err = esp_ota_write(ota, buffer, filled);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "esp_ota_write failed: %s", esp_err_to_name(err));
-            result = send_error(req, "500 Internal Server Error", "Could not write the update");
+            result = send_error(req, "500 Internal Server Error", "Could not write the update", received);
             goto done;
         }
         filled = 0;
@@ -200,19 +238,19 @@ static esp_err_t ota_post_handler(httpd_req_t *req) {
     esp_err_t err = esp_ota_end(ota);
     started = false;
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
-        result = send_error(req, "400 Bad Request", "Image is invalid or not signed with the right key");
+        result = send_error(req, "400 Bad Request", "Image is invalid or not signed with the right key", received);
         goto done;
     }
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_end failed: %s", esp_err_to_name(err));
-        result = send_error(req, "500 Internal Server Error", "Could not finish the update");
+        result = send_error(req, "500 Internal Server Error", "Could not finish the update", received);
         goto done;
     }
 
     err = esp_ota_set_boot_partition(partition);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
-        result = send_error(req, "500 Internal Server Error", "Could not select the new firmware");
+        result = send_error(req, "500 Internal Server Error", "Could not select the new firmware", received);
         goto done;
     }
 

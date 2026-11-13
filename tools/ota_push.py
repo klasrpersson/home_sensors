@@ -51,17 +51,20 @@ def push(address, port, image, token, cert):
     connection.putheader("Content-Length", str(size))
     connection.endheaders()
 
+    progress = sys.stdout.isatty()
     sent = 0
     with open(image, "rb") as f:
         while chunk := f.read(4096):
             try:
                 connection.send(chunk)
             except OSError:
-                # The device closes the connection when it refuses the image, its answer says why
+                # The device closes the connection when it refuses a large image, its answer may still arrive
                 break
             sent += len(chunk)
-            print(f"\rSent {sent * 100 // size}%", end="", flush=True)
-    print()
+            if progress:
+                print(f"\rSent {sent * 100 // size}%", end="", flush=True)
+    if progress:
+        print()
 
     response = connection.getresponse()
     return response.status, response.read().decode(errors="replace")
