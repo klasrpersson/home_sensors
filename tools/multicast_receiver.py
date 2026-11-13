@@ -50,11 +50,12 @@ def print_message(payload, address, last_seq):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--group", action="append", help="multicast group to join, can be repeated (default: 239.255.10.1)")
+    parser.add_argument("--group", action="append", help="multicast group to join, can be repeated (default: 239.255.10.1 and 239.255.10.2)")
     parser.add_argument("--port", type=int, default=45000, help="UDP port (default: 45000)")
     parser.add_argument("--interface", default="0.0.0.0", help="IP address of the local interface to receive on (default: any)")
     args = parser.parse_args()
-    groups = args.group or ["239.255.10.1"]
+    # Measurements and diagnostics
+    groups = args.group or ["239.255.10.1", "239.255.10.2"]
 
     selector = selectors.DefaultSelector()
     for group in groups:

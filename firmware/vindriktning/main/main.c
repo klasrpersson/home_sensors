@@ -5,6 +5,7 @@
 #include "vindriktning_parser.h"
 #include "wlan_station.h"
 #include "multicast_pubsub.h"
+#include "device_diagnostics.h"
 
 static const char *TAG = "Vindriktning";
 
@@ -64,6 +65,13 @@ void app_main(void)
             .ttl = CONFIG_MULTICAST_TTL
         };
         context.publisher = multicast_pubsub_init(&publisher_config);
+
+        if (context.publisher != NULL) {
+            device_diagnostics_config_t diagnostics_config = DEVICE_DIAGNOSTICS_CONFIG_DEFAULT();
+            if (device_diagnostics_start(context.publisher, &diagnostics_config) != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to start diagnostics");
+            }
+        }
     } else {
         ESP_LOGE(TAG, "Failed to start Wi-Fi, measurements will not be published");
     }

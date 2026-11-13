@@ -4,6 +4,7 @@
 #include "cJSON.h"
 #include "wlan_station.h"
 #include "multicast_pubsub.h"
+#include "device_diagnostics.h"
 
 static const char *TAG = "Receiver";
 
@@ -12,6 +13,8 @@ static const multicast_pubsub_topic_t air_quality_topic = {
     .group = CONFIG_MULTICAST_GROUP,
     .port = CONFIG_MULTICAST_PORT
 };
+
+static const multicast_pubsub_topic_t diagnostics_topic = DEVICE_DIAGNOSTICS_TOPIC_DEFAULT();
 
 static void on_message(const multicast_pubsub_message_t *message, void *ctx) {
     char *data = cJSON_PrintUnformatted(message->data);
@@ -50,5 +53,10 @@ void app_main(void)
         return;
     }
 
-    ESP_LOGI(TAG, "Waiting for %s messages", air_quality_topic.type);
+    // Measurements still arrive without diagnostics
+    if (multicast_pubsub_subscribe(pubsub, &diagnostics_topic, on_message, NULL) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to subscribe to %s", diagnostics_topic.type);
+    }
+
+    ESP_LOGI(TAG, "Waiting for messages");
 }

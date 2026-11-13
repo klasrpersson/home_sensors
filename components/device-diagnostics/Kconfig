@@ -1,0 +1,27 @@
+menu "Device diagnostics"
+
+    config DEVICE_DIAGNOSTICS_GROUP
+        string "Diagnostics multicast group"
+        default "239.255.10.2"
+        help
+            IPv4 multicast group that diagnostics messages are sent to, with the
+            Wi-Fi signal strength and the uptime. Senders and receivers must use
+            the same group.
+
+    config DEVICE_DIAGNOSTICS_PORT
+        int "Diagnostics UDP port"
+        range 1 65535
+        default 45000
+        help
+            UDP port that diagnostics messages are sent to. Senders and receivers
+            must use the same port.
+
+    config DEVICE_DIAGNOSTICS_INTERVAL
+        int "Diagnostics interval (s)"
+        range 0 86400
+        default 60
+        help
+            Seconds between diagnostics messages. 0 turns them off. Only used by
+            devices that send diagnostics.
+
+endmenu

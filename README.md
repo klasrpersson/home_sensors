@@ -28,6 +28,12 @@ Measurements are sent over Wi-Fi as UDP multicast, so any device on the network 
 
 `src` is the device name and `seq` counts up per message type, so receivers can tell devices apart and notice lost messages.
 
+Sensors also send `diagnostics` messages every 60 seconds to their own group, 239.255.10.2 by default. The `device-diagnostics` component sends them:
+
+    {"v":1,"type":"diagnostics","src":"vindriktning","seq":7,"data":{"rssi":-66,"uptime":420}}
+
+`rssi` is the Wi-Fi signal strength in dBm, left out while not connected, and `uptime` the seconds since the device started.
+
 To see the messages on a computer on the same network, run from the repository root:
 
     python3 tools/multicast_receiver.py
@@ -42,12 +48,12 @@ Reads PM2.5 measurements from the PM1006 particle sensor inside an IKEA Vindrikt
     idf.py build
     idf.py -p PORT flash monitor
 
-The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. Set the device name, multicast group and port in the same menu.
+The UART port, baud rate and RX pin can be changed under "IKEA Vindriktning Configuration" in `idf.py menuconfig`. Set the device name, multicast group and port in the same menu. The diagnostics group, port and interval are under "Component config" → "Device diagnostics", where an interval of 0 turns diagnostics off.
 
 Receiver
 --------
 
-Receives the air quality messages and logs them. Build and flash from `firmware/receiver`:
+Receives the air quality and diagnostics messages and logs them. Build and flash from `firmware/receiver`:
 
     cd firmware/receiver
     idf.py menuconfig
@@ -57,8 +63,9 @@ Receives the air quality messages and logs them. Build and flash from `firmware/
 Each message is logged with the device name and IP address of its sender:
 
     I (8123) Receiver: air_quality from vindriktning (192.168.1.23) #42: {"pm25":5}
+    I (8456) Receiver: diagnostics from vindriktning (192.168.1.23) #7: {"rssi":-66,"uptime":420}
 
-The multicast group and port can be changed under "Receiver Configuration" in `idf.py menuconfig`, and must match the sensors. Gaps in `#` mean messages were lost on the way.
+The multicast group and port can be changed under "Receiver Configuration" in `idf.py menuconfig`, and the diagnostics group and port under "Component config" → "Device diagnostics". They must match the sensors. Gaps in `#` mean messages were lost on the way.
 
 *Code in this repository is in the Public Domain (or CC0 licensed, at your option.)
 Unless required by applicable law or agreed to in writing, this
